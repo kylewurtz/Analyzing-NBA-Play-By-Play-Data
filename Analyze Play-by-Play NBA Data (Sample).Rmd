@@ -1,0 +1,231 @@
+---
+title: "Analyze Play-by-Play NBA Data (Sample)"
+author: "kyle wurtz"
+date: "September 16, 2016"
+output: 
+  html_document:
+    toc: true
+    theme: yeti
+    code_folding: show
+---
+
+## Overview
+
+## Setup
+### Load Packages
+```{r load packages, warning = FALSE, message = FALSE}
+require(tidyverse)
+require(magrittr)
+require(rvest)
+require(ggthemes)
+require(pander)
+```
+
+### Custom Functions
+```{r filter data frame to on court}
+filter_on = function(df, nm = "name", h_o_a = "home") {
+  if (h_o_a == "home") {
+    df %>% 
+      filter(
+        h1 == nm | h2 == nm | h3 == nm | h4 == nm | h5 == nm
+      )
+  } else if (h_o_a == "away") {
+    df %>% 
+      filter(
+        a1 == nm | a2 == nm | a3 == nm | a4 == nm | a5 == nm
+      )
+  } else {
+    "Error! Select 'home' or 'away' for h_o_a."
+  }
+}
+```
+
+```{r filter data frame to off court}
+filter_off = function(df, nm = "name", h_o_a = "home") {
+  if (h_o_a == "home") {
+    df %>% 
+      filter(
+        h1 != nm, h2 != nm, h3 != nm, h4 != nm, h5 != nm
+      ) 
+  } else if (h_o_a == "away") {
+    df %>% 
+      filter(
+        a1 != nm, a2 != nm, a3 != nm, a4 != nm, a5 != nm
+      )
+  } else {
+    "Error! Select 'home' or 'away' for h_o_a."
+  }
+}
+```
+
+```{r filter to plays for eFG calculation}
+# filters to just shots by the same team as the player by someone other than the player
+filter_eFG = function(df, nm = "name", tm = "teamAbbrev")  {
+  df %>% 
+    filter(
+      team == tm,
+      event_type %in% c("shot", "miss"), # want shots w/o free throws
+      player != nm # want shots from teammates
+    )
+}
+```
+
+```{r calculate eFG}
+eFG = function(df, made_col = "event_type", made_text = "shot", points_col = "points") {
+  (sum(df[made_col] == made_text) + 0.5 * sum(df[points_col] == 3)) / nrow(df)
+}
+```
+
+
+```{r find ratio of eFG while on to eFG while off and shots for each}
+eFGRatio = function(df, nm = "name", tm = "teamAbbrev", h_o_a = "home") {
+  df_on = try(df %>% filter_on(nm, h_o_a) %>% filter_eFG(nm, tm))
+  df_off = try(df %>% filter_off(nm, h_o_a) %>% filter_eFG(nm, tm))
+  
+  if (nrow(df_on) == 0) {
+    # no plays that meet criteria -> return NA
+    eFG_on = NA
+    shots_on = NA
+  } else {
+    eFG_on = eFG(df_on)
+    shots_on = nrow(df_on)
+  }
+  
+  if(nrow(df_off) == 0) {
+    # no plays that meet criteria -> return NA
+    eFG_off = NA
+    shots_off = NA
+  } else {
+    eFG_off = eFG(df_off)
+    shots_off = nrow(df_off)
+  }
+  
+  eFG_Ratio = eFG_on / eFG_off
+  
+  output = list(
+    eFG_Ratio = eFG_Ratio, # ratio of eFG of teammates while on vs. while off court
+    eFG_on = eFG_on, # eFG of teammates while player is on court
+    eFG_off = eFG_off, # eFG of teammates while player is off court
+    shots_on = shots_on, # number of shots by teammates while player is on court
+    shots_off = shots_off # number of shots by teammates while player is off court
+  )
+  
+  return(output)
+}
+```
+
+
+### Inputs
+```{r file paths}
+location_of_data = "/Users/kylewurtz/Dropbox/R/NBA Play-By-Play/Data/Sample BigDataBall"
+data_file_name = "Sample_BigDataBall.csv"
+```
+
+```{r read in data}
+df = read_csv(file.path(location_of_data, data_file_name))
+```
+
+
+## Work
+### Initial Investigation
+```{r initial investigation}
+glimpse(df)
+```
+
+### Effective Field Goal Percentage When CLE Players are On Vs. Off the Court
+```{r cle create data frame for output}
+cle_players = df %>% 
+  select(h1:h5) %>% 
+  gather(pos, player) %>% 
+  select(player) %>% 
+  unique() %>% 
+  arrange(player) %>% 
+  .[[1]]
+
+cle_eFGs = tibble(
+  player = cle_players,
+  eFG_Ratio = NA, eFG_on = NA,  eFG_off = NA,
+  shots_on = NA, shots_off = NA
+)
+```
+
+```{r cle calculate eFG while on court, fig.width = 10.5, fig.height = 7, out.width="900px", out.height = "600px"}
+for (ply in cle_eFGs$player) {
+  print(ply)
+  eFGRatio_output = eFGRatio(df, ply, "CLE", "home")
+  cle_eFGs$eFG_Ratio[cle_eFGs$player == ply] = eFGRatio_output$eFG_Ratio
+  cle_eFGs$eFG_on[cle_eFGs$player == ply] = eFGRatio_output$eFG_on
+  cle_eFGs$eFG_off[cle_eFGs$player == ply] = eFGRatio_output$eFG_off
+  cle_eFGs$shots_on[cle_eFGs$player == ply] = eFGRatio_output$shots_on
+  cle_eFGs$shots_off[cle_eFGs$player == ply] = eFGRatio_output$shots_off
+}
+cle_eFGs %>% 
+  arrange(desc(eFG_Ratio)) %>% 
+  mutate(player = factor(player, levels = .[["player"]]),
+         ratio_cred = sqrt(pmin(shots_on, shots_off) / pmax(shots_on, shots_off))) %>% 
+  ggplot(., aes(x = player, y = eFG_Ratio, fill = ratio_cred)) +
+  geom_bar(stat = "identity") + 
+  theme_fivethirtyeight() +
+  scale_fill_continuous("Credibility") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("Ratio of eFG% of Teammates While On Court vs. Off Court")
+
+
+```
+
+### Effective Field Goal Percentage When GSW Players are On Vs. Off the Court
+```{r gsw create data frame for output}
+gsw_players = df %>% 
+  select(a1:a5) %>% 
+  gather(pos, player) %>% 
+  select(player) %>% 
+  unique() %>% 
+  arrange(player) %>% 
+  .[[1]]
+
+gsw_eFGs = tibble(
+  player = gsw_players,
+  eFG_Ratio = NA, eFG_on = NA,  eFG_off = NA,
+  shots_on = NA, shots_off = NA
+)
+```
+
+```{r gsw calculate eFG while on court, fig.width = 10.5, fig.height = 7, out.width="900px", out.height = "600px"}
+for (ply in gsw_eFGs$player) {
+  eFGRatio_output = eFGRatio(df, ply, "GSW", "away")
+  gsw_eFGs$eFG_Ratio[gsw_eFGs$player == ply] = eFGRatio_output$eFG_Ratio
+  gsw_eFGs$eFG_on[gsw_eFGs$player == ply] = eFGRatio_output$eFG_on
+  gsw_eFGs$eFG_off[gsw_eFGs$player == ply] = eFGRatio_output$eFG_off
+  gsw_eFGs$shots_on[gsw_eFGs$player == ply] = eFGRatio_output$shots_on
+  gsw_eFGs$shots_off[gsw_eFGs$player == ply] = eFGRatio_output$shots_off
+}
+gsw_eFGs %>% 
+  arrange(desc(eFG_Ratio)) %>% 
+  mutate(player = factor(player, levels = .[["player"]]),
+         ratio_cred = sqrt(pmin(shots_on, shots_off) / pmax(shots_on, shots_off))) %>% 
+  ggplot(., aes(x = player, y = eFG_Ratio, fill = ratio_cred)) +
+  geom_bar(stat = "identity") + 
+  theme_fivethirtyeight() +
+  scale_fill_continuous("Credibility") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("Ratio of eFG% of Teammates While On Court vs. Off Court")
+
+
+```
+
+
+```{r show credibility }
+data_frame(
+  lower = 1:100,
+  higher = 100,
+  ratio = lower / higher,
+  sq_ratio = sqrt(lower / higher)
+) %>% 
+  select(-higher) %>% 
+  gather(type, value, -lower) %>% 
+  ggplot(., aes(x = lower, y = value, group = type, color = type)) +
+    geom_line() +
+  theme_fivethirtyeight()
+```
+
+

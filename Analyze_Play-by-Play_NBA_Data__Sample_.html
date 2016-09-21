@@ -173,6 +173,8 @@ require(pander)</code></pre>
 </div>
 <div id="custom-functions" class="section level3">
 <h3>Custom Functions</h3>
+<p>To help with the analysis, I’ll create a few functions.</p>
+<p>The first function will filter the game’s data frame down to just the records for which a given player is on the court.</p>
 <pre class="r"><code>filter_on = function(df, nm = &quot;name&quot;, h_o_a = &quot;home&quot;) {
   if (h_o_a == &quot;home&quot;) {
     df %&gt;% 
@@ -188,6 +190,7 @@ require(pander)</code></pre>
     &quot;Error! Select 'home' or 'away' for h_o_a.&quot;
   }
 }</code></pre>
+<p>The next function will do the same for when a given player is off the court.</p>
 <pre class="r"><code>filter_off = function(df, nm = &quot;name&quot;, h_o_a = &quot;home&quot;) {
   if (h_o_a == &quot;home&quot;) {
     df %&gt;% 
@@ -203,6 +206,7 @@ require(pander)</code></pre>
     &quot;Error! Select 'home' or 'away' for h_o_a.&quot;
   }
 }</code></pre>
+<p>Since I’m interested in the shooting percentage of <em>just the teammates</em> while a player is on vs. off the court (in other words, I’m not interested in the player’s shooting percentage but rather just the rest of his teammates’ shooting percentages), I’ll need to filter out some records. This function will filter to just the shots attempted or made by the player’s team that were <strong>not</strong> attempted/made by the player himself.</p>
 <pre class="r"><code># filters to just shots by the same team as the player by someone other than the player
 filter_eFG = function(df, nm = &quot;name&quot;, tm = &quot;teamAbbrev&quot;)  {
   df %&gt;% 
@@ -212,9 +216,11 @@ filter_eFG = function(df, nm = &quot;name&quot;, tm = &quot;teamAbbrev&quot;)  {
       player != nm # want shots from teammates
     )
 }</code></pre>
+<p>I’ll also create a function to calculate the eFG%: <code>eFG% = (FGM + 0.5 * 3PM) / FGA</code>.</p>
 <pre class="r"><code>eFG = function(df, made_col = &quot;event_type&quot;, made_text = &quot;shot&quot;, points_col = &quot;points&quot;) {
   (sum(df[made_col] == made_text) + 0.5 * sum(df[points_col] == 3)) / nrow(df)
 }</code></pre>
+<p>Finally, I’ll write a function to return the relative eFG% and a few more relevant pieces of information. I’m particularly interested in returning the number of shots attempted by teammates while a player is on/off the court. If there’s a large discrepancy, which indicates that a player is either on the court or off the court for the vast majority of the game, the relative eFG% may be unreliable due to random fluctuations. I’ll want to account for that in my analysis below.</p>
 <pre class="r"><code>eFGRatio = function(df, nm = &quot;name&quot;, tm = &quot;teamAbbrev&quot;, h_o_a = &quot;home&quot;) {
   df_on = try(df %&gt;% filter_on(nm, h_o_a) %&gt;% filter_eFG(nm, tm))
   df_off = try(df %&gt;% filter_off(nm, h_o_a) %&gt;% filter_eFG(nm, tm))

@@ -25,6 +25,9 @@ require(pander)
 ```
 
 ### Custom Functions
+To help with the analysis, I'll create a few functions. 
+
+The first function will filter the game's data frame down to just the records for which a given player is on the court.
 ```{r filter data frame to on court}
 filter_on = function(df, nm = "name", h_o_a = "home") {
   if (h_o_a == "home") {
@@ -43,6 +46,7 @@ filter_on = function(df, nm = "name", h_o_a = "home") {
 }
 ```
 
+The next function will do the same for when a given player is off the court.
 ```{r filter data frame to off court}
 filter_off = function(df, nm = "name", h_o_a = "home") {
   if (h_o_a == "home") {
@@ -61,6 +65,7 @@ filter_off = function(df, nm = "name", h_o_a = "home") {
 }
 ```
 
+Since I'm interested in the shooting percentage of *just the teammates* while a player is on vs. off the court (in other words, I'm not interested in the player's shooting percentage but rather just the rest of his teammates' shooting percentages), I'll need to filter out some records. This function will filter to just the shots attempted or made by the player's team that were **not** attempted/made by the player himself.
 ```{r filter to plays for eFG calculation}
 # filters to just shots by the same team as the player by someone other than the player
 filter_eFG = function(df, nm = "name", tm = "teamAbbrev")  {
@@ -73,13 +78,14 @@ filter_eFG = function(df, nm = "name", tm = "teamAbbrev")  {
 }
 ```
 
+I'll also create a function to calculate the eFG%: `eFG% = (FGM + 0.5 * 3PM) / FGA`.
 ```{r calculate eFG}
 eFG = function(df, made_col = "event_type", made_text = "shot", points_col = "points") {
   (sum(df[made_col] == made_text) + 0.5 * sum(df[points_col] == 3)) / nrow(df)
 }
 ```
 
-
+Finally, I'll write a function to return the relative eFG% and a few more relevant pieces of information. I'm particularly interested in returning the number of shots attempted by teammates while a player is on/off the court. If there's a large discrepancy, which indicates that a player is either on the court or off the court for the vast majority of the game, the relative eFG% may be unreliable due to random fluctuations. I'll want to account for that in my analysis below.
 ```{r find ratio of eFG while on to eFG while off and shots for each}
 eFGRatio = function(df, nm = "name", tm = "teamAbbrev", h_o_a = "home") {
   df_on = try(df %>% filter_on(nm, h_o_a) %>% filter_eFG(nm, tm))

@@ -11,7 +11,7 @@
 
 <meta name="author" content="kyle wurtz" />
 
-<meta name="date" content="2016-09-16" />
+<meta name="date" content="2016-09-21" />
 
 <title>Analyze Play-by-Play NBA Data (Sample)</title>
 
@@ -136,7 +136,7 @@ $(document).ready(function () {
 
 <h1 class="title toc-ignore">Analyze Play-by-Play NBA Data (Sample)</h1>
 <h4 class="author"><em>kyle wurtz</em></h4>
-<h4 class="date"><em>September 16, 2016</em></h4>
+<h4 class="date"><em>September 21, 2016</em></h4>
 
 </div>
 
@@ -158,6 +158,8 @@ $(document).ready(function () {
 
 <div id="overview" class="section level2">
 <h2>Overview</h2>
+<p>This is a sample analysis to test the viability of using play-by-play NBA data from <a href="https://www.bigdataball.com/nba-play-by-play-logs">BigDataBall.com</a> for analysis. I’ve been looking for a source of play-by-play data that would allow me to calculate things like effective field goal percentage (eFG%) of teammates while a player is on vs. off the court. The play-by-play data that’s available at places like Basketball-Reference.com and NBA.com don’t have the necessary detail (e.g., they don’t describe who is on the court for a given play), but BigDataBall appears to. The data comes with a cost, though, so I wanted to run a sample analysis with their sample file to see if I liked the format and was willing to purchase full seasons of the data.</p>
+<p>Given that broader objective, this analysis calculates the relative eFG% of teammates while each player is on vs. off the court for both teams in Game 4 of the 2016 NBA finals.</p>
 </div>
 <div id="setup" class="section level2">
 <h2>Setup</h2>

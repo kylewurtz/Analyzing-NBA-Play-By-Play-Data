@@ -1,7 +1,7 @@
 ---
 title: "Analyze Play-by-Play NBA Data (Sample)"
 author: "kyle wurtz"
-date: "September 16, 2016"
+date: "September 21, 2016"
 output: 
   html_document:
     toc: true
@@ -10,6 +10,9 @@ output:
 ---
 
 ## Overview
+This is a sample analysis to test the viability of using play-by-play NBA data from [BigDataBall.com](https://www.bigdataball.com/nba-play-by-play-logs) for analysis. I've been looking for a source of play-by-play data that would allow me to calculate things like effective field goal percentage (eFG%) of teammates while a player is on vs. off the court. The play-by-play data that's available at places like Basketball-Reference.com and NBA.com don't have the necessary detail (e.g., they don't describe who is on the court for a given play), but BigDataBall appears to. The data comes with a cost, though, so I wanted to run a sample analysis with their sample file to see if I liked the format and was willing to purchase full seasons of the data.
+
+Given that broader objective, this analysis calculates the relative eFG% of teammates while each player is on vs. off the court for both teams in Game 4 of the 2016 NBA finals.
 
 ## Setup
 ### Load Packages

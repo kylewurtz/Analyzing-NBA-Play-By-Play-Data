@@ -1,7 +1,7 @@
 ---
 title: "Analyze Play-by-Play NBA Data (Sample)"
 author: "kyle wurtz"
-date: "September 21, 2016"
+date: "`r Sys.Date()`"
 output: 
   html_document:
     toc: true
@@ -25,6 +25,9 @@ require(pander)
 ```
 
 ### Custom Functions
+To help with the analysis, I'll create a few functions. 
+
+The first function will filter the game's data frame down to just the records for which a given player is on the court.
 ```{r filter data frame to on court}
 filter_on = function(df, nm = "name", h_o_a = "home") {
   if (h_o_a == "home") {
@@ -43,6 +46,7 @@ filter_on = function(df, nm = "name", h_o_a = "home") {
 }
 ```
 
+The next function will do the same for when a given player is off the court.
 ```{r filter data frame to off court}
 filter_off = function(df, nm = "name", h_o_a = "home") {
   if (h_o_a == "home") {
@@ -61,6 +65,7 @@ filter_off = function(df, nm = "name", h_o_a = "home") {
 }
 ```
 
+Since I'm interested in the shooting percentage of *just the teammates* while a player is on vs. off the court (in other words, I'm not interested in the player's shooting percentage but rather just the rest of his teammates' shooting percentages), I'll need to filter out some records. This function will filter to just the shots attempted or made by the player's team that were **not** attempted/made by the player himself.
 ```{r filter to plays for eFG calculation}
 # filters to just shots by the same team as the player by someone other than the player
 filter_eFG = function(df, nm = "name", tm = "teamAbbrev")  {
@@ -73,13 +78,14 @@ filter_eFG = function(df, nm = "name", tm = "teamAbbrev")  {
 }
 ```
 
+I'll also create a function to calculate the eFG%: `eFG% = (FGM + 0.5 * 3PM) / FGA`.
 ```{r calculate eFG}
 eFG = function(df, made_col = "event_type", made_text = "shot", points_col = "points") {
   (sum(df[made_col] == made_text) + 0.5 * sum(df[points_col] == 3)) / nrow(df)
 }
 ```
 
-
+Finally, I'll write a function to return the relative eFG% and a few more relevant pieces of information. I'm particularly interested in returning the number of shots attempted by teammates while a player is on/off the court. If there's a large discrepancy, which indicates that a player is either on the court or off the court for the vast majority of the game, the relative eFG% may be unreliable due to random fluctuations. I'll want to account for that in my analysis below.
 ```{r find ratio of eFG while on to eFG while off and shots for each}
 eFGRatio = function(df, nm = "name", tm = "teamAbbrev", h_o_a = "home") {
   df_on = try(df %>% filter_on(nm, h_o_a) %>% filter_eFG(nm, tm))
@@ -120,9 +126,13 @@ eFGRatio = function(df, nm = "name", tm = "teamAbbrev", h_o_a = "home") {
 
 ### Inputs
 ```{r file paths}
-location_of_data = "/Users/kylewurtz/Dropbox/R/NBA Play-By-Play/Data/Sample BigDataBall"
+location_of_data = "/Users/kylewurtz/Dropbox/R/NBA Play-By-Play/Sample Analysis/Data/Sample BigDataBall" # Update!
 data_file_name = "Sample_BigDataBall.csv"
 ```
+
+
+### Read in Sample Data Set
+BigDataBall offers a [free sample data set](https://www.bigdataball.com/nba-play-by-play-logs) of its play-by-play data, and that's what I'll be working with in this file. For convenience, I've downloaded a copy of the data set and stored it in the repository.
 
 ```{r read in data}
 df = read_csv(file.path(location_of_data, data_file_name))
@@ -131,11 +141,19 @@ df = read_csv(file.path(location_of_data, data_file_name))
 
 ## Work
 ### Initial Investigation
+Now that I have the data read in, I'll take a quick look at the structure of the data set before moving on with the analysis.
 ```{r initial investigation}
 glimpse(df)
+
+summary(df)
 ```
 
+The data set is rich with detail and has all the information needed to calculate effective field goal percentages of teammates while a player is on vs. off the court. I could spend hours playing with all the data in this file (x and y coordinates!), but for the purposes of this sample analysis I'll limit the scope to eFG%. 
+
 ### Effective Field Goal Percentage When CLE Players are On Vs. Off the Court
+First, I'll take a look at the ratio of teammates' eFG% while each Cleveland player is on vs. off the court. The goal here is to get a rough understanding of whether a player's presence on the court makes his teammates more effective shooters. Certain players (e.g., LeBron) tend to draw a lot of attention from the other team's defenders, and that attention may free up quality scoring opportunities for their teammates. This sort of analysis can supplement more traditional analyses that focus on an individual player's efficiency. 
+
+I'll start by creating an empty tibble that will house the results for Cleveland players.
 ```{r cle create data frame for output}
 cle_players = df %>% 
   select(h1:h5) %>% 
@@ -152,9 +170,9 @@ cle_eFGs = tibble(
 )
 ```
 
+Next, I'll loop through each of the records in the `cle_players` tibble (each record contains a player) and calculate the relevant metrics using the functions I created earlier in the file. I'll also plot the ratio of the eFG% of teammates while a player is on vs. off the court for each of the players.
 ```{r cle calculate eFG while on court, fig.width = 10.5, fig.height = 7, out.width="900px", out.height = "600px"}
 for (ply in cle_eFGs$player) {
-  print(ply)
   eFGRatio_output = eFGRatio(df, ply, "CLE", "home")
   cle_eFGs$eFG_Ratio[cle_eFGs$player == ply] = eFGRatio_output$eFG_Ratio
   cle_eFGs$eFG_on[cle_eFGs$player == ply] = eFGRatio_output$eFG_on
@@ -169,14 +187,15 @@ cle_eFGs %>%
   ggplot(., aes(x = player, y = eFG_Ratio, fill = ratio_cred)) +
   geom_bar(stat = "identity") + 
   theme_fivethirtyeight() +
-  scale_fill_continuous("Credibility") +
+  scale_fill_continuous("Credibility", limits = c(0, 1)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ggtitle("Ratio of eFG% of Teammates While On Court vs. Off Court")
-
-
+  ggtitle("CLE: Ratio of eFG% of Teammates While On Court vs. Off Court")
 ```
 
+For the most part, the plot is fairly straightforward. The players are sorted from the best ratios to the worst, and the ratios are on the y-axis. Unsurprisingly, LeBron's ratio is pretty solid at just over 2.0. This means that teammates' eFG%s are roughly twice as good when he's on the court than when he's not. Interestingly, J.R. Smith's and Kyrie Irving's ratios are spectacular. These players are generally considered somewhat ineffective, but perhaps their recklessness draws attention and opens up some opportunities for their teammates. Of course, we're just looking at one game so this could easily be an anomaly. Furthermore, this ratio metric shouldn't be believed equally for each of the players. The fewer plays that are included in either the "on court" or the "off court" values, the more likely the ratio is to be thrown off due to chance. For example, LeBron played pretty much the entire game. It may simply be chance that CLE players didn't shoot well during the couple plays that he was off the court. Conversly, Kevin Love spent about half the time on the court and half the time off the court. As such, there's a higher likelihood that Love's ratio is reflective of a real phenomenon than LeBron's ratio. To try to put a numeric value to the believability of each of the ratios, I took a page from the actuarial world and used the simple square root rule credibility measure. The standard for full credibility (100% believable) is when the player spent an equal amount of time on the court as off the court. The more disproportionate the on-the-court plays are vs. the off-the-court plays, the lower the credibility. This credibility amount is mapped onto the color scale, with lighter blue colors being more credible. 
+
 ### Effective Field Goal Percentage When GSW Players are On Vs. Off the Court
+I'll also perform the same exercise for the Golden State players.
 ```{r gsw create data frame for output}
 gsw_players = df %>% 
   select(a1:a5) %>% 
@@ -209,26 +228,11 @@ gsw_eFGs %>%
   ggplot(., aes(x = player, y = eFG_Ratio, fill = ratio_cred)) +
   geom_bar(stat = "identity") + 
   theme_fivethirtyeight() +
-  scale_fill_continuous("Credibility") +
+  scale_fill_continuous("Credibility", limits = c(0, 1)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ggtitle("Ratio of eFG% of Teammates While On Court vs. Off Court")
-
-
+  ggtitle("GSW: Ratio of eFG% of Teammates While On Court vs. Off Court")
 ```
 
+Interestingly, the results don't look too great for some of the stars on the Warriors. The best values come from either players who didn't get much playing time (McAdoo and Bogut) and Harrison Barnes, who lives in the shadows of Curry, Thompson, and Green. The results for McAdoo and Bogut could simply be chance error due to the small sample size (credibility isn't very good for any of the GSW players due to their skewed rotation) or the fact that they were probably playing during times when Cleveland also had their reserves in the game. The results for Barnes are more interesting, though. As a starter, he probably played the majority of his time with other starters. Yet his ratio is much better than the rest of the starters. That could be worth investigating. 
 
-```{r show credibility }
-data_frame(
-  lower = 1:100,
-  higher = 100,
-  ratio = lower / higher,
-  sq_ratio = sqrt(lower / higher)
-) %>% 
-  select(-higher) %>% 
-  gather(type, value, -lower) %>% 
-  ggplot(., aes(x = lower, y = value, group = type, color = type)) +
-    geom_line() +
-  theme_fivethirtyeight()
-```
-
-
+For now, though, I'll wrap up this little analysis. I think there's a sufficient level of granularity in this data to allow me to waste hours and hours nerding out, so I'll be purchasing the BigDataBall subscription for the upcoming season and the data for historical seasons. I'll add more related analyses to this repository over time.
